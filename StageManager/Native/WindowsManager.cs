@@ -29,6 +29,8 @@ namespace StageManager.Native
 		private IntPtr _currentProcessWindowHandle;
 		private int _currentProcessId;
 
+		private readonly List<ScreenInfo> _allScreens;
+
 		/// <summary>
 		/// Notifies when a new window handle was created by the manager
 		/// </summary>
@@ -65,11 +67,12 @@ namespace StageManager.Native
 
 		public IEnumerable<IWindow> Windows => _windows.Values;
 
-		public WindowsManager()
+		public WindowsManager(List<ScreenInfo> allScreens)
 		{
 			_windows = new Dictionary<IntPtr, WindowsWindow>();
 			_floating = new Dictionary<WindowsWindow, bool>();
 			_hookDelegate = new WinEventDelegate(WindowHook);
+			_allScreens = allScreens ?? new List<ScreenInfo>();
 		}
 
 		public Task Start()
@@ -211,7 +214,17 @@ namespace StageManager.Native
 
 			if (!_windows.ContainsKey(handle))
 			{
-				var window = new WindowsWindow(handle);
+				var window = new WindowsWindow(handle, _allScreens);
+
+				if (window.Monitor == null)
+				{
+					// Log error or handle case where monitor couldn't be determined
+					// For now, we might skip adding the window or add it with default handling
+					// Depending on requirements. Skipping might be safer.
+					// Debug.WriteLine($"Could not determine monitor for window {handle}, skipping registration.");
+					// return; 
+					// Alternatively, allow registration but be aware Monitor property is null.
+				}
 
 				if (window.ProcessId < 0 || window.ProcessId == _currentProcessId)
 					return;

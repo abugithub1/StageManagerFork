@@ -7,6 +7,11 @@ using System.Drawing;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Linq;
+using System.Windows;
+using ControlzEx.Standard;
+using WpfWindowState = System.Windows.WindowState; // Alias for WPF WindowState
+using InternalWindowState = StageManager.Native.Window.WindowState; // Alias for internal WindowState
 
 namespace StageManager.Native
 {
@@ -24,14 +29,17 @@ namespace StageManager.Native
 		private string _processFileName;
 		private string _processExecutable;
 		private IWindowLocation _lastLocation;
+		private ScreenInfo _monitor;
 
-		public WindowsWindow(IntPtr handle)
+		public WindowsWindow(IntPtr handle, List<ScreenInfo> allScreens)
 		{
 			_handle = handle;
 
+			_monitor = GetMonitorForWindow(handle, allScreens);
+
 			try
 			{
-				var process = GetProcessByWindowHandle(_handle);
+				var process = GetProcessByWindowHandle(handle);
 				_processId = process.Id;
 				_processName = process.ProcessName;
 				_processExecutable = process.MainModule.FileName;
@@ -101,14 +109,15 @@ namespace StageManager.Native
 				Win32.Rect rect = new Win32.Rect();
 				Win32.GetWindowRect(_handle, ref rect);
 
-				WindowState state = WindowState.Normal;
+				// Use aliased type
+				InternalWindowState state = InternalWindowState.Normal;
 				if (IsMinimized)
 				{
-					state = WindowState.Minimized;
+					state = InternalWindowState.Minimized;
 				}
 				else if (IsMaximized)
 				{
-					state = WindowState.Maximized;
+					state = InternalWindowState.Maximized;
 				}
 
 				return new WindowLocation(rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top, state);
@@ -303,7 +312,102 @@ namespace StageManager.Native
 			}
 		}
 
+		public ScreenInfo Monitor => _monitor;
 
+		private static ScreenInfo GetMonitorForWindow(IntPtr handle, List<ScreenInfo> allScreens)
+		{
+			// Restore original logic, but add explicit initialization for windowRect
+			if (allScreens == null || !allScreens.Any())
+			{
+				// Fallback if no screen info provided initially (should ideally not happen if called correctly)
+				IntPtr monitorHandleNoScreens = NativeMethods.MonitorFromWindow(handle, MonitorOptions.MONITOR_DEFAULTTONEAREST);
+				if (monitorHandleNoScreens != IntPtr.Zero)
+				{
+					var monitorInfo = NativeMethods.GetMonitorInfoW(monitorHandleNoScreens);
+					// Cannot map back to ScreenInfo without the list, return null or throw?
+				}
+				return null; // Or potentially throw an exception
+			}
 
+			// Declare AND initialize windowRect to default
+			Win32.Rect windowRect = default;
+
+			// Use GetWindowRect with ref
+			if (!Win32.GetWindowRect(handle, ref windowRect))
+			{
+				// Handle error - window might not exist anymore or other issue.
+				// Try finding the nearest monitor as a fallback.
+				IntPtr monitorHandleFallback = NativeMethods.MonitorFromWindow(handle, MonitorOptions.MONITOR_DEFAULTTONEAREST);
+				if (monitorHandleFallback != IntPtr.Zero)
+				{
+					var nearestMonitorInfo = NativeMethods.GetMonitorInfoW(monitorHandleFallback);
+					// Try to match the HMONITOR info to our ScreenInfo list
+					var fallbackScreen = allScreens.FirstOrDefault(s =>
+						s.Bounds.X == nearestMonitorInfo.rcMonitor.Left &&
+						s.Bounds.Y == nearestMonitorInfo.rcMonitor.Top &&
+						s.Bounds.Width == (nearestMonitorInfo.rcMonitor.Right - nearestMonitorInfo.rcMonitor.Left) &&
+						s.Bounds.Height == (nearestMonitorInfo.rcMonitor.Bottom - nearestMonitorInfo.rcMonitor.Top)
+					);
+					if (fallbackScreen != null) return fallbackScreen; // Return matched screen
+				}
+				// If MonitorFromWindow didn't yield a match, return primary or first screen as final fallback.
+				return allScreens.FirstOrDefault(s => s.IsPrimary) ?? allScreens.First();
+			}
+
+			// If GetWindowRect succeeded, proceed with calculating bounds and finding the best screen
+
+			// Calculate bounds using the successfully retrieved windowRect
+			Rectangle windowBounds = new Rectangle(
+				windowRect.Left, 
+				windowRect.Top, 
+				windowRect.Right - windowRect.Left, 
+				windowRect.Bottom - windowRect.Top
+			);
+
+			// Find screen with largest intersection area
+			ScreenInfo bestScreen = allScreens
+				.Select(screen => new { 
+					Screen = screen, 
+					IntersectionArea = CalculateIntersectionArea(windowBounds, screen.Bounds) 
+				})
+				.Where(x => x.IntersectionArea > 0)
+				.OrderByDescending(x => x.IntersectionArea)
+				.Select(x => x.Screen)
+				.FirstOrDefault();
+			
+			// If no intersection (e.g., window is fully off-screen but GetWindowRect succeeded), 
+			// use MonitorFromWindow to find the nearest one based on the handle.
+			if (bestScreen == null)
+			{
+				IntPtr monitorHandleNearest = NativeMethods.MonitorFromWindow(handle, MonitorOptions.MONITOR_DEFAULTTONEAREST);
+				if (monitorHandleNearest != IntPtr.Zero)
+				{
+					var nearestMonitorInfo = NativeMethods.GetMonitorInfoW(monitorHandleNearest);
+					// Try to match the HMONITOR info to our ScreenInfo list
+					bestScreen = allScreens.FirstOrDefault(s => 
+						s.Bounds.X == nearestMonitorInfo.rcMonitor.Left && 
+						s.Bounds.Y == nearestMonitorInfo.rcMonitor.Top &&
+						s.Bounds.Width == (nearestMonitorInfo.rcMonitor.Right - nearestMonitorInfo.rcMonitor.Left) &&
+						s.Bounds.Height == (nearestMonitorInfo.rcMonitor.Bottom - nearestMonitorInfo.rcMonitor.Top)
+					);
+				}
+			}
+
+			// Final fallback if no intersection and MonitorFromWindow failed or didn't match
+			return bestScreen ?? allScreens.FirstOrDefault(s => s.IsPrimary) ?? allScreens.First(); 
+		}
+
+		private static double CalculateIntersectionArea(Rectangle windowRect, Rect screenRectWpf)
+		{
+			// Convert WPF Rect to System.Drawing.Rectangle
+			Rectangle screenRect = new Rectangle((int)screenRectWpf.X, (int)screenRectWpf.Y, (int)screenRectWpf.Width, (int)screenRectWpf.Height);
+
+			Rectangle intersection = Rectangle.Intersect(windowRect, screenRect);
+
+			if (intersection.IsEmpty)
+				return 0;
+
+			return (double)intersection.Width * intersection.Height;
+		}
 	}
 }

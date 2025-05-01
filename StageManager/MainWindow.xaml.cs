@@ -36,6 +36,7 @@ namespace StageManager
 		private Point _mouse = new Point(0, 0);
 		private SceneModel _removedCurrentScene;
 		private SceneModel _mouseDownScene;
+		private List<ScreenInfo> _allScreens;
 
 		public bool EnableWindowDropToScene = false;
 		public bool EnableWindowPullToScene = true;
@@ -80,7 +81,11 @@ namespace StageManager
 
 			_thisHandle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
 
-			var windowsManager = new WindowsManager();
+			_allScreens = VisualHelper.GetAllMonitorInfo();
+
+			PositionWindowOnPrimaryMonitor();
+
+			var windowsManager = new WindowsManager(_allScreens);
 			SceneManager = new SceneManager(windowsManager);
 			await SceneManager.Start().ConfigureAwait(true);
 
@@ -132,10 +137,19 @@ namespace StageManager
 		protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)
 		{
 			base.OnRenderSizeChanged(sizeInfo);
-			var area = this.GetMonitorWorkSize();
-			this.Left = 0;
-			this.Top = 0;
-			this.Height = area.Height;
+			PositionWindowOnPrimaryMonitor();
+		}
+
+		private void PositionWindowOnPrimaryMonitor()
+		{
+			var primaryScreen = _allScreens?.FirstOrDefault(s => s.IsPrimary);
+			if (primaryScreen != null)
+			{
+				var area = primaryScreen.WorkingArea;
+				this.Left = area.Left;
+				this.Top = area.Top;
+				this.Height = area.Height;
+			}
 		}
 
 		private void SceneManager_SceneChanged(object sender, SceneChangedEventArgs e)
@@ -222,7 +236,7 @@ namespace StageManager
 
 		private SceneModel FindSceneByPoint(Point p)
 		{
-			var thisWindow = new WindowsWindow(_thisHandle);
+			var thisWindow = new WindowsWindow(_thisHandle, _allScreens);
 			var pointOnWindow = new Point(p.X - thisWindow.Location.X, p.Y - thisWindow.Location.Y);
 
 			var dpi = VisualTreeHelper.GetDpi(this);

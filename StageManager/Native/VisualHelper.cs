@@ -12,7 +12,10 @@
 
 using ControlzEx.Standard;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
+using System.Windows.Forms;
 using System.Windows.Interop;
 using System.Windows.Media;
 
@@ -78,5 +81,24 @@ namespace StageManager.Native
 
 			return null;
 		}
+
+		public static List<ScreenInfo> GetAllMonitorInfo()
+		{
+			return Screen.AllScreens.Select(screen => new ScreenInfo
+			{
+				DeviceName = screen.DeviceName,
+				Bounds = new Rect(screen.Bounds.X, screen.Bounds.Y, screen.Bounds.Width, screen.Bounds.Height),
+				WorkingArea = new Rect(screen.WorkingArea.X, screen.WorkingArea.Y, screen.WorkingArea.Width, screen.WorkingArea.Height),
+				IsPrimary = screen.Primary
+			}).ToList();
+		}
+	}
+
+	public class ScreenInfo
+	{
+		public string DeviceName { get; set; }
+		public Rect Bounds { get; set; }
+		public Rect WorkingArea { get; set; }
+		public bool IsPrimary { get; set; }
 	}
 }

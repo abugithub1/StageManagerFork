@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Drawing;
+using StageManager.Native;
 
 namespace StageManager.Native.Window
 {
@@ -30,6 +31,8 @@ namespace StageManager.Native.Window
         int ProcessId { get; }
         string ProcessFileName { get; }
         string ProcessName { get; }
+
+        ScreenInfo Monitor { get; }
 
         bool CanLayout { get; }
 
