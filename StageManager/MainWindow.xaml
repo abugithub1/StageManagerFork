@@ -57,8 +57,7 @@
                         Visibility="{Binding Visibility}"
                         Style="{StaticResource SceneOpacity}">
                         <i:Interaction.Triggers>
-                            <i:EventTrigger
-                                EventName="MouseLeftButtonUp">
+                            <i:EventTrigger EventName="PreviewMouseLeftButtonDown">
                                 <i:InvokeCommandAction
                                     Command="{Binding SwitchSceneCommand, Mode=OneTime, Source={x:Reference thisWindow}}"
                                     CommandParameter="{Binding .}" />

@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Input;
 
 namespace StageManager
 {
@@ -65,7 +66,18 @@ namespace StageManager
 				return;
 
 			if (type == WindowUpdateType.Foreground)
+			{
 				SwitchToSceneByWindow(window).SafeFireAndForget();
+			}
+			else if (type == WindowUpdateType.MinimizeStart)
+			{
+				bool isCtrlPressed = Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl);
+				if (isCtrlPressed)
+				{
+					HandleUngroupMinimize(window);
+				}
+				// else: Normal minimize, do nothing specific here for now
+			}
 		}
 
 		private void WindowsManager_UntrackedFocus(object? sender, IntPtr e)
@@ -170,6 +182,55 @@ namespace StageManager
 			}
 
 			return false;
+		}
+
+		public async Task ActivateGroup(List<Scene> scenesToGroup)
+		{
+			if (scenesToGroup == null || scenesToGroup.Count < 2) 
+			{
+				// Cannot group less than two scenes, activate the first one if available
+				if (scenesToGroup?.Count == 1)
+				{
+					await SwitchTo(scenesToGroup.First());
+				}
+				return;
+			}
+
+			// Combine windows from all scenes
+			var allWindowsInGroup = scenesToGroup.SelectMany(s => s.Windows).Distinct().ToArray();
+			if (!allWindowsInGroup.Any()) return; // Cannot create an empty group
+
+			// Create a unique key for the group (could be improved)
+			string groupKey = $"group-{Guid.NewGuid()}"; 
+			var newGroupScene = new Scene(groupKey, allWindowsInGroup);
+
+			try
+			{
+				_suspend = true; // Prevent interference while modifying lists and switching
+
+				// Add the new group scene
+				_scenes.Add(newGroupScene);
+				// Use the first window for the Created event's context (arbitrary choice)
+				SceneChanged?.Invoke(this, new SceneChangedEventArgs(newGroupScene, allWindowsInGroup.First(), ChangeType.Created)); 
+
+				// Remove original scenes that were grouped
+				foreach (var sceneToRemove in scenesToGroup)
+				{
+					if (_scenes.Remove(sceneToRemove))
+					{
+						// Use the first window (if any) for the Removed event's context
+						var contextWindow = sceneToRemove.Windows.FirstOrDefault();
+						SceneChanged?.Invoke(this, new SceneChangedEventArgs(sceneToRemove, contextWindow, ChangeType.Removed));
+					}
+				}
+			}
+			finally
+			{
+				_suspend = false;
+			}
+
+			// Switch to the new group scene
+			await SwitchTo(newGroupScene);
 		}
 
 		public async Task SwitchTo(Scene? scene)
@@ -297,5 +358,137 @@ namespace StageManager
 		public IEnumerable<IWindow> GetCurrentWindows() => _current?.Windows ?? GetSceneableWindows();
 
 		private string GetWindowGroupKey(IWindow window) => window.ProcessName;
+
+		private async void HandleUngroupMinimize(IWindow window)
+		{
+			var currentScene = FindSceneForWindow(window);
+
+			// Only ungroup if the window is in the currently active scene and that scene is a multi-app group
+			if (currentScene != null && currentScene == _current && currentScene.IsMultiAppGroup)
+			{
+				Scene? sceneToSwitchTo = null; // Variable to hold scene to switch to after suspend=false
+				Scene? originalScene = null; // To store the result of FindOrCreateOriginalScene
+				try
+				{
+					_suspend = true;
+
+					// Remove window from the group
+					currentScene.Remove(window);
+					SceneChanged?.Invoke(this, new SceneChangedEventArgs(currentScene, window, ChangeType.Updated));
+
+					// Find or create the original scene for the window
+					originalScene = FindOrCreateOriginalScene(window);
+					// Add window back to its original scene (event raised by FindOrCreateOriginalScene if needed)
+					if (!originalScene.Windows.Contains(window))
+					{
+						originalScene.Add(window);
+						// Raise updated event for original scene if it already existed
+						if (_scenes.Contains(originalScene)) // Check if it wasn't newly created
+						{
+							SceneChanged?.Invoke(this, new SceneChangedEventArgs(originalScene, window, ChangeType.Updated));
+						}
+					}
+
+					// Check if the group scene is now empty
+					if (!currentScene.Windows.Any())
+					{
+						if (_scenes.Remove(currentScene))
+						{
+							SceneChanged?.Invoke(this, new SceneChangedEventArgs(currentScene, null, ChangeType.Removed));
+							sceneToSwitchTo = originalScene; // Schedule switch to the window's new scene
+						}
+					}
+				}
+				finally
+				{
+					_suspend = false;
+				}
+
+				// Perform switch outside the suspend block if needed
+				if (sceneToSwitchTo != null)
+				{
+					await SwitchTo(sceneToSwitchTo);
+				}
+			}
+		}
+
+		private Scene FindOrCreateOriginalScene(IWindow window)
+		{
+			string originalKey = GetWindowGroupKey(window);
+			var existingScene = FindSceneForProcess(originalKey);
+
+			if (existingScene != null)
+			{
+				return existingScene;
+			}
+			else
+			{
+				var newOriginalScene = new Scene(originalKey, window); // Create with only this window initially
+				_scenes.Add(newOriginalScene);
+				SceneChanged?.Invoke(this, new SceneChangedEventArgs(newOriginalScene, window, ChangeType.Created));
+				return newOriginalScene;
+			}
+		}
+
+		public async Task AddSceneToCurrentGroup(Scene sceneToAdd)
+		{
+			if (sceneToAdd == null || _current == null || sceneToAdd.Id == _current.Id)
+			{
+				// Cannot add null, nothing to add to, or adding the current scene to itself
+				return; 
+			}
+
+			// Get windows to move (avoid modifying original list while iterating)
+			var windowsToMove = sceneToAdd.Windows.ToList(); 
+			if (!windowsToMove.Any()) 
+			{
+				// Scene to add is already empty, maybe remove it?
+				if (_scenes.Remove(sceneToAdd))
+				{
+					// Use the first window (if any) for the Removed event's context - won't have one here
+					SceneChanged?.Invoke(this, new SceneChangedEventArgs(sceneToAdd, null, ChangeType.Removed));
+				}
+				return;
+			}
+
+			try
+			{
+				_suspend = true; // Prevent interference
+
+				// Move each window to the current scene
+				foreach (var window in windowsToMove)
+				{
+					// Add window to the current scene's list
+					// Note: Scene.Add handles duplicates if necessary
+					_current.Add(window); 
+				
+					// Remove window from the source scene's list
+					// (Scene.Remove doesn't exist, but the window is effectively moved by adding to _current)
+					// We just need to ensure the source scene is eventually removed.
+				}
+			
+				// Use the first moved window for the Updated event's context
+				SceneChanged?.Invoke(this, new SceneChangedEventArgs(_current, windowsToMove.First(), ChangeType.Updated));
+
+				// Remove the now empty source scene
+				if (_scenes.Remove(sceneToAdd))
+				{
+					// Use the first moved window for the Removed event's context
+					SceneChanged?.Invoke(this, new SceneChangedEventArgs(sceneToAdd, windowsToMove.First(), ChangeType.Removed));
+				}
+
+			}
+			finally
+			{
+				_suspend = false;
+			}
+
+			// Ensure the current (now merged) scene is visually active
+			// Re-apply the window strategy to ensure the newly added windows are shown correctly
+			foreach (var window in windowsToMove)
+			{
+				WindowStrategy.Show(window);
+			}
+		}
 	}
 }

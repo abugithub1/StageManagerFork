@@ -21,14 +21,14 @@ namespace StageManager.Model
 		private IWindow _window;
 		private ImageSource _iconSource;
 
-		public event PropertyChangedEventHandler PropertyChanged;
+		public event PropertyChangedEventHandler? PropertyChanged;
 
 		public WindowModel(IWindow window)
 		{
 			Window = window ?? throw new ArgumentNullException(nameof(window));
 		}
 
-		private void RaisePropertyChanged([System.Runtime.CompilerServices.CallerMemberName] string memberName = "")
+		private void RaisePropertyChanged([System.Runtime.CompilerServices.CallerMemberName] string? memberName = null)
 		{
 			PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(memberName));
 		}

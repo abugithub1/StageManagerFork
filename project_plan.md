@@ -69,10 +69,21 @@ Implement the ability to group windows from different applications together into
 5.  **Activation Behavior:** Clicking a multi-app group in the sidebar should hide/minimize the currently active windows and restore/show all windows belonging to the selected group.
 6.  **Group Modification (Removal):** Provide a mechanism to remove a specific window from a multi-app group (e.g., Ctrl+Clicking the minimize button on the window itself, TBC).
 
+### Changes Made So Far (Phase 2)
+
+1.  **Data Structure Design:** Decided to adapt existing `Scene` class (which already supports `List<IWindow>`).
+2.  **UI Interaction:** Implemented Ctrl+Click detection in `MainWindow.xaml.cs` (`HandleSceneSelection`) using `Keyboard.IsKeyDown`. Managed a temporary selection list (`_selectedSceneModels`). Changed `EventTrigger` to `PreviewMouseLeftButtonDown`.
+3.  **Group Visualization (Basic):** Added `IsMultiSelected` property to `SceneModel`. Added a `Border` to scene items in `MainWindow.xaml` bound to this property via `BooleanToBorderThicknessConverter` for visual feedback during selection.
+4.  **Window Management Logic (Grouping):** Added `ActivateGroup` method to `SceneManager.cs` to handle creating a new group `Scene`, removing original scenes, raising events, and calling `SwitchTo` for the new group.
+5.  **Hookup:** Connected `HandleSceneSelection` in `MainWindow.xaml.cs` to call `SceneManager.ActivateGroup`.
+6.  **Build:** Successfully built the application with basic grouping functionality.
+
 ### Next Steps / TODO (Phase 2)
 
-1.  **Data Structure Design:** Determine how to represent multi-app groups within the existing `SceneManager` / `Scene` structure or design a new structure.
-2.  **UI Interaction:** Implement Ctrl/Shift+Click logic in `MainWindow.xaml.cs` for sidebar item selection.
-3.  **Group Visualization:** Update `MainWindow.xaml` and related view models to visually represent these groups in the sidebar.
-4.  **Window Management Logic:** Modify the window hide/show logic (`SceneManager`, `MainWindow`, potentially `WindowsManager`) to handle activating/deactivating multi-app groups instead of just single scenes.
-5.  **Group Removal Logic:** Implement the defined mechanism for removing a window from a group. 
+1.  **Implement Group Modification (Removal):** **(NEXT STEP)** Implement the logic to detect Ctrl+Minimize on a window and remove it from its current multi-app group scene. This involves:
+    *   Finding where minimize events are handled (likely `WindowsManager`).
+    *   Adding logic to check for Ctrl key press during minimize.
+    *   Modifying `SceneManager` to handle removing a window from a group scene and potentially recreating its original single-process scene.
+2.  **Refine Sidebar Representation:** Improve how multi-app groups are visually displayed in the sidebar (e.g., clustered icons, better title generation).
+3.  **Refine Group Identification/Key:** Improve how group scenes are identified (currently `group-{Guid}`).
+4.  **Handle Edge Cases:** Consider behavior when removing the last window from a group, etc.

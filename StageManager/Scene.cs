@@ -68,5 +68,8 @@ namespace StageManager
 		public bool HasFocus => Windows.Any(w => w.IsFocused);
 
 		public string Key { get; }
+
+		// Helper property to determine if this scene groups multiple applications
+		public bool IsMultiAppGroup => Windows.Select(w => w.ProcessName).Distinct().Count() > 1;
 	}
 }

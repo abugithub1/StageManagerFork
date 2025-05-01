@@ -49,7 +49,7 @@ namespace StageManager
 
 			_overlapCheckTimer = new Timer(OverlapCheck, null, 2500, TIMERINTERVAL_MILLISECONDS);
 
-			SwitchSceneCommand = new ActionCommand(async model => await SceneManager!.SwitchTo(((SceneModel)model).Scene));
+			SwitchSceneCommand = new ActionCommand(model => HandleSceneSelection((SceneModel)model));
 		}
 
 		protected override void OnInitialized(EventArgs e)
@@ -407,6 +407,24 @@ namespace StageManager
 		private void ContextMenu_Opened(object sender, RoutedEventArgs e)
 		{
 			StopHook();
+		}
+
+		private async void HandleSceneSelection(SceneModel clickedModel)
+		{
+			if (clickedModel == null) return;
+
+			if (Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl))
+			{
+				// Ctrl+Click: Add windows from clicked scene to the current scene
+				Debug.WriteLine($"Attempting to add scene {clickedModel.Title} to current group.");
+				await SceneManager.AddSceneToCurrentGroup(clickedModel.Scene).ConfigureAwait(true);
+			}
+			else // Normal click (no Ctrl)
+			{
+				// Switch to the clicked scene
+				Debug.WriteLine($"Switching to scene {clickedModel.Title}.");
+				await SceneManager.SwitchTo(clickedModel.Scene).ConfigureAwait(true);
+			}
 		}
 	}
 

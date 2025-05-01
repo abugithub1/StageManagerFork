@@ -2,15 +2,17 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using System.Runtime.CompilerServices;
 
 namespace StageManager.Model
 {
 	[System.Diagnostics.DebuggerDisplay("{Title}")]
 	public class SceneModel : INotifyPropertyChanged
 	{
-		public event PropertyChangedEventHandler PropertyChanged;
+		public event PropertyChangedEventHandler? PropertyChanged;
 		private bool _isVisible;
 		private Scene _scene;
+		private ObservableCollection<WindowModel> _windows = new ObservableCollection<WindowModel>();
 
 		public static SceneModel FromScene(Scene scene)
 		{
@@ -118,6 +120,22 @@ namespace StageManager.Model
 
 		public System.Windows.Visibility Visibility => IsVisible ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
 
-		public ObservableCollection<WindowModel> Windows { get; set; } = new ObservableCollection<WindowModel>();
+		public ObservableCollection<WindowModel> Windows
+		{
+			get => _windows;
+			set
+			{
+				if (_windows != value)
+				{
+					_windows = value;
+					RaisePropertyChanged();
+				}
+			}
+		}
+
+		protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+		{
+			PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+		}
 	}
 }
