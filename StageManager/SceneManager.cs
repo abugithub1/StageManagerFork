@@ -245,29 +245,47 @@ namespace StageManager
 			{
 				_suspend = true;
 
-				var otherWindows = GetSceneableWindows().Except(scene?.Windows ?? Array.Empty<IWindow>()).ToArray();
+				// Determine windows to hide and show
+				var windowsToShow = scene?.Windows ?? Array.Empty<IWindow>();
+				var allManageableWindows = GetSceneableWindows().ToArray(); // Get all windows once
+				var windowsToHide = allManageableWindows.Except(windowsToShow).ToArray();
 
 				var prior = _current;
 				_current = scene;
 
-				foreach (var s in _scenes)
-					s.IsSelected = s.Equals(scene);
-
-				if (scene is object)
+				// Use DeferWindowPos for batch update
+				int count = windowsToHide.Count() + windowsToShow.Count();
+				if (count > 0)
 				{
-					foreach (var w in scene.Windows)
-						WindowStrategy.Show(w);
+					using (var hdwp = WindowsManager.DeferWindowsPos(count))
+					{
+						// Queue hiding windows
+						foreach (var window in windowsToHide)
+						{
+							WindowStrategy.DeferHide(window, hdwp); // Use deferred hide
+						}
+
+						// Queue showing windows
+						foreach (var window in windowsToShow)
+						{
+							WindowStrategy.DeferShow(window, hdwp); // Use deferred show
+						}
+					}
+					// EndDeferWindowPos is called automatically by using statement's Dispose
 				}
 
-				foreach (var o in otherWindows)
-					WindowStrategy.Hide(o);
+				// Focus one of the windows in the new scene (after batch update)
+				// This still happens after the windows are shown/hidden by EndDeferWindowPos
+				if (scene != null)
+				{
+					var windowToFocus = scene.Windows.FirstOrDefault(w => !w.IsMinimized);
+					if (windowToFocus != null)
+					{
+						windowToFocus.Focus();
+					}
+				}
 
-				CurrentSceneSelectionChanged?.Invoke(this, new CurrentSceneSelectionChangedEventArgs(prior, _current));
-
-				if (scene is null)
-					_desktop.ShowIcons();
-				else
-					_desktop.HideIcons();
+				CurrentSceneSelectionChanged?.Invoke(this, new CurrentSceneSelectionChangedEventArgs(prior, scene));
 			}
 			finally
 			{

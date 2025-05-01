@@ -13,5 +13,17 @@ namespace StageManager.Strategies
 		{
 			throw new System.NotImplementedException();
 		}
+
+		public void DeferShow(IWindow window, IWindowsDeferPosHandle handle)
+		{
+			// Placeholder: Calls original Show method
+			Show(window);
+		}
+
+		public void DeferHide(IWindow window, IWindowsDeferPosHandle handle)
+		{
+			// Placeholder: Calls original Hide method
+			Hide(window);
+		}
 	}
 }

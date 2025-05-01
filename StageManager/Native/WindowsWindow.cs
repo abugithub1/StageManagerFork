@@ -231,7 +231,9 @@ namespace StageManager.Native
 		{
 			if (!IsFocused)
 			{
-				Win32Helper.ForceForegroundWindow(_handle);
+				// Try using the standard SetForegroundWindow first
+				Win32.SetForegroundWindow(_handle); 
+				// Win32Helper.ForceForegroundWindow(_handle); // Keep the old one commented for reference
 				WindowFocused?.Invoke(this);
 			}
 		}

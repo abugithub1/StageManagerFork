@@ -1,4 +1,6 @@
-﻿using StageManager.Native.Window;
+﻿using StageManager.Native.PInvoke;
+using StageManager.Native.Window;
+using System;
 
 namespace StageManager.Strategies
 {
@@ -15,7 +17,20 @@ namespace StageManager.Strategies
 
 		public void Hide(IWindow window)
 		{
-			window.Hide();
+			Win32.ShowWindow(window.Handle, Win32.SW.SW_HIDE);
+		}
+
+		// Add placeholder implementations for the interface
+		public void DeferShow(IWindow window, IWindowsDeferPosHandle handle)
+		{
+			// Placeholder: Calls original Show method
+			Show(window);
+		}
+
+		public void DeferHide(IWindow window, IWindowsDeferPosHandle handle)
+		{
+			// Placeholder: Calls original Hide method
+			Hide(window);
 		}
 	}
 }

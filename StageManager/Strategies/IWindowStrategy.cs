@@ -7,5 +7,9 @@ namespace StageManager.Strategies
 		void Show(IWindow window);
 
 		void Hide(IWindow window);
+
+		// Add methods for deferred positioning
+		void DeferShow(IWindow window, IWindowsDeferPosHandle handle);
+		void DeferHide(IWindow window, IWindowsDeferPosHandle handle);
 	}
 }

@@ -36,5 +36,18 @@ namespace StageManager.Strategies
 			_ = SetWindowLong(window.Handle, GWL_EXSTYLE, GetWindowLong(window.Handle, GWL_EXSTYLE) | WS_EX_LAYERED);
 			SetLayeredWindowAttributes(window.Handle, 0, 0, LWA_ALPHA);
 		}
+
+		// Add placeholder implementations for the interface
+		public void DeferShow(IWindow window, IWindowsDeferPosHandle handle)
+		{
+			// Placeholder: Calls original Show method
+			Show(window);
+		}
+
+		public void DeferHide(IWindow window, IWindowsDeferPosHandle handle)
+		{
+			// Placeholder: Calls original Hide method
+			Hide(window);
+		}
 	}
 }

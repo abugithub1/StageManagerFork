@@ -77,13 +77,14 @@ Implement the ability to group windows from different applications together into
 4.  **Window Management Logic (Grouping):** Added `ActivateGroup` method to `SceneManager.cs` to handle creating a new group `Scene`, removing original scenes, raising events, and calling `SwitchTo` for the new group.
 5.  **Hookup:** Connected `HandleSceneSelection` in `MainWindow.xaml.cs` to call `SceneManager.ActivateGroup`.
 6.  **Build:** Successfully built the application with basic grouping functionality.
+7.  **Focus/Delay Bug Fix:** Investigated sidebar unresponsiveness after scene switch. Initially modified window focus logic (`SetForegroundWindow`), then implemented `BeginDeferWindowPos`/`EndDeferWindowPos` in `SceneManager.SwitchTo` to batch window state changes. This caused animation issues.
+8.  **Animation Fix:** Reverted `NormalizeAndMinimizeWindowStrategy` to use `ShowWindow` with `SW_RESTORE` and `SW_MINIMIZE` flags, restoring standard window animations while keeping the deferred structure.
+9.  **Ungrouping Logic:** Basic implementation for Ctrl+Minimize ungrouping in `SceneManager.HandleUngroupMinimize` seems functional.
 
 ### Next Steps / TODO (Phase 2)
 
-1.  **Implement Group Modification (Removal):** **(NEXT STEP)** Implement the logic to detect Ctrl+Minimize on a window and remove it from its current multi-app group scene. This involves:
-    *   Finding where minimize events are handled (likely `WindowsManager`).
-    *   Adding logic to check for Ctrl key press during minimize.
-    *   Modifying `SceneManager` to handle removing a window from a group scene and potentially recreating its original single-process scene.
+1.  **Implement Group Modification (Removal):** **(DONE - Basic logic implemented in `SceneManager.HandleUngroupMinimize`, needs testing/refinement)**
 2.  **Refine Sidebar Representation:** Improve how multi-app groups are visually displayed in the sidebar (e.g., clustered icons, better title generation).
 3.  **Refine Group Identification/Key:** Improve how group scenes are identified (currently `group-{Guid}`).
 4.  **Handle Edge Cases:** Consider behavior when removing the last window from a group, etc.
+5.  **Refine Ungrouping:** Test and refine the `HandleUngroupMinimize` logic, potentially improve how original scenes are recreated/handled.
